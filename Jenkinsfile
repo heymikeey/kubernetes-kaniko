@@ -1,53 +1,58 @@
-podTemplate(yaml: '''
-    apiVersion: v1
-    kind: Pod
-    spec:
-      containers:
-      - name: maven
-        image: maven:3.8.1-jdk-8
-        command:
-        - sleep
-        args:
-        - 99d
-      - name: kaniko
-        image: gcr.io/kaniko-project/executor:debug
-        command:
-        - sleep
-        args:
-        - 9999999
-        volumeMounts:
-        - name: kaniko-secret
-          mountPath: /kaniko/.docker
-      restartPolicy: Never
-      volumes:
-      - name: kaniko-secret
-        secret:
-            secretName: dockercred
-            items:
-            - key: .dockerconfigjson
-              path: config.json
-''') {
-  node(POD_LABEL) {
-    stage('Get a Maven project') {
-      git url: 'https://github.com/scriptcamp/kubernetes-kaniko.git', branch: 'main'
-      container('maven') {
-        stage('Build a Maven project') {
-          sh '''
-          echo pwd
-          '''
+pipeline {
+  agent {
+    kubernetes {
+      yaml '''
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          labels:
+            some-label: some-label-value
+        spec:
+          containers:
+          - name: nodejs
+            image: node:16-alpine
+            command:
+            - sleep
+            args:
+            - 99d
+            tty: true
+          - name: kaniko
+            image: gcr.io/kaniko-project/executor:debug
+            command:
+            - sleep
+            args:
+            - 9999999
+            tty: true
+            volumeMounts:
+              - name: jenkins-docker-cfg
+                mountPath: /kaniko/.docker
+          volumes:
+          - name: jenkins-docker-cfg
+            projected:
+              sources:
+              - secret:
+                  name: regcred
+                  items:
+                    - key: .dockerconfigjson
+                      path: config.json
+        '''
+    }
+  }
+  
+  stages {
+    stage('Run nodejs') {
+      steps {
+        container('nodejs') {
+          sh 'node --version'
         }
       }
     }
-
-    stage('Build Java Image') {
-      container('kaniko') {
-        stage('Build a Go project') {
-          sh '''
-            /kaniko/executor --context `pwd` --destination bibinwilson/hello-kaniko:1.0
-          '''
+    stage('Build with kaniko') {
+        steps {
+          container('kaniko') {
+            sh '/kaniko/executor -f `pwd`/Dockerfile -c `pwd` --insecure --skip-tls-verify --cache=true --destination=$DOCKERHUB_REGISTRY'
+          }
         }
-      }
     }
-
   }
 }
