@@ -50,7 +50,7 @@ pipeline {
     stage('Build with kaniko') {
         steps {
           container('kaniko') {
-            sh '/kaniko/executor -f `pwd`/Dockerfile -c `pwd` --insecure --skip-tls-verify --cache=true --destination=$DOCKERHUB_REGISTRY'
+            sh '/kaniko/executor -f `pwd`/Dockerfile -c `pwd` --insecure --skip-tls-verify --cache=true --destination=$heymikeey/hello-kaniko'
           }
         }
     }
